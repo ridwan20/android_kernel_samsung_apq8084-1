@@ -805,7 +805,11 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		pr_info("[%s]: SSR start. crash:[%s]\n",__func__,name);
 		/* ADSP cannot work properly after ADSP SSR. So restart SOC. */
 		if (!strcmp("adsp", name))
+#ifdef CONFIG_SEC_LENTIS_PROJECT
+			dev->restart_level = RESET_SUBSYS_COUPLED;
+#else
 			dev->restart_level = RESET_SOC;
+#endif
 		else
 			dev->restart_level = RESET_SUBSYS_COUPLED; //Why is it delete the RESET_SUBSYS_INDEPENDENT on MSM8974 ?
 	}

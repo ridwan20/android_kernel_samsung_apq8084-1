@@ -11,6 +11,7 @@
 
 #include <linux/notifier.h>
 #include <linux/host_notify.h>
+#include <linux/external_notify.h>
 
 enum otg_notify_events {
 	NOTIFY_EVENT_NONE,
@@ -23,6 +24,7 @@ enum otg_notify_events {
 	NOTIFY_EVENT_LANHUB,
 	NOTIFY_EVENT_LANHUB_TA,
 	NOTIFY_EVENT_MMDOCK,
+	NOTIFY_EVENT_HMT,
 	NOTIFY_EVENT_DRIVE_VBUS,
 	NOTIFY_EVENT_ALLDISABLE_NOTIFY,
 	NOTIFY_EVENT_HOSTDISABLE_NOTIFY,
@@ -31,6 +33,7 @@ enum otg_notify_events {
 	NOTIFY_EVENT_SMSC_OVC,
 	NOTIFY_EVENT_SMTD_EXT_CURRENT,
 	NOTIFY_EVENT_MMD_EXT_CURRENT,
+	NOTIFY_EVENT_DEVICE_CONNECT,
 	NOTIFY_EVENT_VBUSPOWER,
 	NOTIFY_EVENT_VIRTUAL,
 };
@@ -88,6 +91,7 @@ struct otg_notify {
 	int auto_drive_vbus;
 	int booting_delay_sec;
 	int disable_control;
+	int device_check_sec;
 	const char *muic_name;
 	int (*pre_gpio)(int gpio, int use);
 	int (*post_gpio)(int gpio, int use);

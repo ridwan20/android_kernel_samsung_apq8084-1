@@ -156,8 +156,13 @@ static bool max77804k_charger_unlock(struct max77804k_charger_data *chg_data)
 		if (chgprot != 0x03) {
 			pr_err("%s: unlock err, chgprot(0x%x), retry(%d)\n",
 					__func__, chgprot, retry_cnt);
+#if 0
 			max77804k_write_reg(i2c, MAX77804K_CHG_REG_CHG_CNFG_06,
 				(0x03 << 2));
+#else
+			max77804k_update_reg(i2c, MAX77804K_CHG_REG_CHG_CNFG_06,
+				(0x03 << 2), (0x03 << 2));
+#endif
 			need_init = true;
 			msleep(20);
 		} else {
@@ -677,6 +682,10 @@ static int max77804k_get_health_state(struct max77804k_charger_data *charger)
 	u8 chg_int_mask, chg_dtls_00, chg_dtls, reg_data;
 	u8 chg_cnfg_00, chg_cnfg_01 ,chg_cnfg_02, chg_cnfg_04, chg_cnfg_09, chg_cnfg_12;
 
+	/* watchdog kick */
+	max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_06,
+		MAX77804K_WDTCLR, MAX77804K_WDTCLR);
+
 	max77804k_read_reg(charger->max77804k->i2c,
 		MAX77804K_CHG_REG_CHG_DTLS_01, &reg_data);
 	max77804k_read_reg(charger->max77804k->i2c,
@@ -1017,6 +1026,9 @@ static int sec_chg_set_property(struct power_supply *psy,
 		max77804k_set_input_current(charger,
 				val->intval);
 		break;
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
+		max77804k_set_topoff_current(charger, val->intval, (70 * 60));
+		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 		charger->siop_level = val->intval;
 		if (charger->is_charging) {
@@ -1220,9 +1232,13 @@ static void max77804k_charger_initialize(struct max77804k_charger_data *charger)
 
 	/* unlock charger setting protect */
 	reg_data = (0x03 << 2);
+#if 0
 	max77804k_write_reg(charger->max77804k->i2c,
 		MAX77804K_CHG_REG_CHG_CNFG_06, reg_data);
-
+#else
+	max77804k_update_reg(charger->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_CNFG_06, reg_data, reg_data);
+#endif
 	/*
 	 * fast charge timer disable
 	 * restart threshold disable
@@ -1258,6 +1274,10 @@ static void max77804k_charger_initialize(struct max77804k_charger_data *charger)
 	max77804k_read_reg(charger->max77804k->i2c,
 			MAX77804K_CHG_REG_CHG_CNFG_04, &reg_data);
 	pr_info("%s: battery cv voltage 0x%x\n", __func__, reg_data);
+
+	/* Watchdog Enable */
+	max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_00,
+		MAX77804K_WDTEN, MAX77804K_WDTEN);
 }
 
 static void sec_chg_isr_work(struct work_struct *work)
@@ -1920,6 +1940,10 @@ static int max77804k_charger_probe(struct platform_device *pdev)
 	if (ret < 0)
 		pr_err("%s: fail to request bypass IRQ: %d: %d\n",
 				__func__, charger->irq_bypass, ret);
+	/* watchdog kick */
+	max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_06,
+		MAX77804K_WDTCLR, MAX77804K_WDTCLR);
+
 	return 0;
 err_wc_irq:
 	free_irq(charger->pdata->chg_irq, NULL);

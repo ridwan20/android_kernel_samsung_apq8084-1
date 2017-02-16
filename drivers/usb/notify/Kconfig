@@ -10,6 +10,14 @@ config USB_HOST_NOTIFY
 	  Host notify Driver serves uevent format
 	  that is used by usb host or otg.
 
+comment "USB Notify features"
+config USB_EXTERNAL_NOTIFY
+	boolean "USB external notify"
+	depends on USB_NOTIFY_LAYER
+	help
+	  Added usb external notify.
+	  The usb external notify broadcast special situation to muic and charger
+
 config USB_NOTIFY_LAYER
 	boolean "USB notify layer"
 	depends on USB

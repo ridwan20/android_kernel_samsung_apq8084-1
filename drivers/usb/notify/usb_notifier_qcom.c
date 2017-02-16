@@ -185,6 +185,7 @@ static struct otg_notify sec_otg_notify = {
 	.set_peripheral	= qcom_set_peripheral,
 	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
+	.device_check_sec = 3,
 	.set_battcall = set_online,
 	.disable_control = 1,
 };

@@ -106,6 +106,13 @@ static int call_battery_notify(struct usb_device *dev, bool bOnOff)
 	int count = 0;
 	int port;
 
+#ifdef CONFIG_SEC_LENTIS_PROJECT
+	if (dev->bus->root_hub != dev && bOnOff) {
+		pr_info("%s device\n", __func__);
+		send_otg_notify(o_notify, NOTIFY_EVENT_DEVICE_CONNECT, 1);
+	}
+#endif
+
 	index = is_notify_hub(dev);
 	if (!index)
 		goto skip;

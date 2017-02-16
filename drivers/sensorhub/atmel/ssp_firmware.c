@@ -22,6 +22,9 @@
 #if defined(CONFIG_SEC_TRLTE_PROJECT) || defined(CONFIG_SEC_TBLTE_PROJECT)
 #define SSP_FIRMWARE_REVISION		15102300
 #define BL_FW_NAME			"ssp_at_tr.fw"
+#elif defined(CONFIG_SEC_LENTIS_PROJECT)
+#define SSP_FIRMWARE_REVISION		16031400
+#define BL_FW_NAME			"ssp_at_le.fw"
 #else
 #define SSP_FIRMWARE_REVISION		16030700
 #define BL_FW_NAME			"ssp_at.fw"

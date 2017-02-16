@@ -198,7 +198,7 @@ int usb_notify_dev_register(struct usb_notify_dev *udev)
 		return PTR_ERR(udev->dev);
 
 	udev->disable_state = 0;
-	strncpy(udev->disable_state_cmd, "OFF", 3);
+	strncpy(udev->disable_state_cmd, "OFF", sizeof(udev->disable_state_cmd)-1);
 	ret = sysfs_create_group(&udev->dev->kobj, &usb_notify_attr_grp);
 	if (ret < 0) {
 		device_destroy(usb_notify_data.usb_notify_class,

@@ -3365,13 +3365,19 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 {
 	int ret;
 
-	if ((host->caps & MMC_CAP_NONREMOVABLE) || !host->bus_ops->alive)
+	if ((host->caps & MMC_CAP_NONREMOVABLE) || (host->bus_ops && !host->bus_ops->alive))
 		return 0;
 
 	if (!host->card || mmc_card_removed(host->card))
 		return 1;
 
-	ret = host->bus_ops->alive(host);
+	if (host->bus_ops)
+		ret = host->bus_ops->alive(host);
+	else {
+		if (host->card)
+			mmc_card_set_removed(host->card);
+		return 1;
+	}
 
 	/*
 	 * Card detect status and alive check may be out of sync if card is
@@ -3385,7 +3391,7 @@ int _mmc_detect_card_removed(struct mmc_host *host)
 		pr_debug("%s: card removed too slowly\n", mmc_hostname(host));
 	}
 
-	if (ret) {
+	if (ret && host->card) {
 		mmc_card_set_removed(host->card);
 		pr_debug("%s: card remove detected\n", mmc_hostname(host));
 		ST_LOG("<%s> %s: card remove detected\n", __func__,mmc_hostname(host));
@@ -3507,7 +3513,7 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 	mmc_rpm_release(host, &host->class_dev);
  out:
-	if (extend_wakelock)
+	if (extend_wakelock && !host->rescan_disable)
 		wake_lock_timeout(&host->detect_wake_lock, HZ / 2);
 
 	if (host->caps & MMC_CAP_NEEDS_POLL)
@@ -3816,6 +3822,10 @@ int mmc_suspend_host(struct mmc_host *host)
 
 	trace_mmc_suspend_host(mmc_hostname(host), err,
 			ktime_to_us(ktime_sub(ktime_get(), start)));
+
+	if (host->card && host->card->type == MMC_TYPE_SD)
+		mdelay(50);
+
 	return err;
 out:
 	if (!(host->card && mmc_card_sdio(host->card)))
@@ -3924,6 +3934,13 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		 * Cancel such the scheduled works.
 		 */
 		cancel_delayed_work_sync(&host->detect);
+
+		/*
+		 * It is possible that the wake-lock has been acquired, since
+		 * its being suspended, release the wakelock
+		 */
+		if (wake_lock_active(&host->detect_wake_lock))
+			wake_unlock(&host->detect_wake_lock);
 
 		if (!host->bus_ops || host->bus_ops->suspend)
 			break;

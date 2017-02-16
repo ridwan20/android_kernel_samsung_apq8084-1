@@ -192,7 +192,7 @@ void report_gyro_data(struct ssp_data *data, struct sensor_value *gyrodata)
 	data->buf[GYROSCOPE_SENSOR].y = gyrodata->y;
 	data->buf[GYROSCOPE_SENSOR].z = gyrodata->z;
 
-#if defined(CONFIG_SEC_TRLTE_PROJECT) || defined(CONFIG_SEC_TBLTE_PROJECT) || defined(CONFIG_SEC_KCCAT6_PROJECT)
+#if defined(CONFIG_SEC_TRLTE_PROJECT) || defined(CONFIG_SEC_TBLTE_PROJECT) || defined(CONFIG_SEC_KCCAT6_PROJECT) || defined(CONFIG_SEC_LENTIS_PROJECT)
 	if (data->uGyroDps == GYROSCOPE_DPS500) {
 		lTemp[0] = (int)data->buf[GYROSCOPE_SENSOR].x >> 2;
 		lTemp[1] = (int)data->buf[GYROSCOPE_SENSOR].y >> 2;

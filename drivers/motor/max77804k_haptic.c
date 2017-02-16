@@ -132,6 +132,20 @@ static int max77804k_haptic_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void max77804k_haptic_shutdown(struct device *dev)
+{
+	struct max77804k_haptic_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	pr_info("%s: Disable HAPTIC\n", __func__);
+	ret = max77804k_update_reg(data->i2c, MAX77804K_HAPTIC_REG_CONFIG2,
+				   0x0, MAX77804K_MOTOR_EN);
+	if (ret < 0) {
+		pr_err("%s: fail to update reg\n", __func__);
+		return;
+	}
+}
+
 static int max77804k_haptic_suspend(struct platform_device *pdev,
 			pm_message_t state)
 {
@@ -150,6 +164,7 @@ static struct platform_driver max77804k_haptic_driver = {
 	.driver = {
 		.name	= "max77804k-haptic",
 		.owner	= THIS_MODULE,
+		.shutdown = max77804k_haptic_shutdown,
 	},
 };
 

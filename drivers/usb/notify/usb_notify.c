@@ -66,6 +66,9 @@ struct usb_notify {
 	struct otg_booster *booster;
 	struct ovc ovc_info;
 	struct otg_booting_delay b_delay;
+	struct delayed_work check_work;
+	int is_device;
+	int check_work_complete;
 	int oc_noti;
 	int diable_v_drive;
 	unsigned long c_type;
@@ -96,6 +99,7 @@ static int check_event_type(enum otg_notify_events event)
 	case NOTIFY_EVENT_SMSC_OVC:
 	case NOTIFY_EVENT_SMTD_EXT_CURRENT:
 	case NOTIFY_EVENT_MMD_EXT_CURRENT:
+	case NOTIFY_EVENT_DEVICE_CONNECT:
 		ret |= NOTIFY_EVENT_EXTRA;
 		break;
 	case NOTIFY_EVENT_VBUS:
@@ -104,6 +108,7 @@ static int check_event_type(enum otg_notify_events event)
 				| NOTIFY_EVENT_NEED_CLIENT);
 		break;
 	case NOTIFY_EVENT_HOST:
+	case NOTIFY_EVENT_HMT:
 		ret |= (NOTIFY_EVENT_STATE | NOTIFY_EVENT_NEED_VBUSDRIVE
 				| NOTIFY_EVENT_DELAY | NOTIFY_EVENT_NEED_HOST);
 		break;
@@ -160,6 +165,8 @@ static const char *event_string(enum otg_notify_events event)
 		return virt ? "lanhub_ta(virtual)" : "lanhub_ta";
 	case NOTIFY_EVENT_MMDOCK:
 		return virt ? "mmdock(virtual)" : "mmdock";
+	case NOTIFY_EVENT_HMT:
+		return virt ? "hmt(virtual)" : "hmt";
 	case NOTIFY_EVENT_DRIVE_VBUS:
 		return "drive_vbus";
 	case NOTIFY_EVENT_ALLDISABLE_NOTIFY:
@@ -178,6 +185,8 @@ static const char *event_string(enum otg_notify_events event)
 		return "smtd_ext_current";
 	case NOTIFY_EVENT_MMD_EXT_CURRENT:
 		return "mmd_ext_current";
+	case NOTIFY_EVENT_DEVICE_CONNECT:
+		return "device_connect";
 	default:
 		return "undefined";
 	}
@@ -517,6 +526,7 @@ int do_notify_blockstate(struct otg_notify *notify, unsigned long event,
 	case NOTIFY_EVENT_VBUS:
 		break;
 	case NOTIFY_EVENT_LANHUB:
+	case NOTIFY_EVENT_HMT:
 	case NOTIFY_EVENT_HOST:
 	case NOTIFY_EVENT_MMDOCK:
 	case NOTIFY_EVENT_SMARTDOCK_TA:
@@ -572,6 +582,7 @@ static void otg_notify_state(unsigned long event, int enable)
 	struct otg_notify *notify = NULL;
 	int type = 0;
 	int virtual = 0;
+	unsigned long prev_c_type = 0;
 
 	if (!u_notify) {
 		pr_err("u_notify is NULL\n");
@@ -586,6 +597,7 @@ static void otg_notify_state(unsigned long event, int enable)
 		pr_err("notify is NULL\n");
 		goto no_save_event;
 	}
+	prev_c_type = u_notify->c_type;
 
 	virtual = IS_VIRTUAL(event);
 	event = PHY_EVENT(event);
@@ -665,6 +677,7 @@ static void otg_notify_state(unsigned long event, int enable)
 				wake_unlock(&u_notify->wlock);
 		}
 		break;
+	case NOTIFY_EVENT_HMT:
 	case NOTIFY_EVENT_HOST:
 		if (notify->unsupport_host) {
 			pr_err("This model doesn't support usb host\n");
@@ -792,6 +805,26 @@ static void otg_notify_state(unsigned long event, int enable)
 	default:
 		break;
 	}
+
+	if ((type & NOTIFY_EVENT_NEED_VBUSDRIVE)
+				&& event != NOTIFY_EVENT_HOST) {
+		if (enable) {
+			if (notify->device_check_sec) {
+				if(prev_c_type != NOTIFY_EVENT_HOST)
+					u_notify->is_device = 0;
+				u_notify->check_work_complete = 0;
+				schedule_delayed_work(&u_notify->check_work,
+					notify->device_check_sec*HZ);
+				pr_info("%s check work start\n", __func__);
+			}
+		} else {
+			if (notify->device_check_sec && !u_notify->check_work_complete) {
+				pr_info("%s check work cancel\n", __func__);
+				cancel_delayed_work_sync(&u_notify->check_work);
+			}
+			u_notify->is_device = 0;
+		}
+	}
 err2:
 	update_cable_status(notify, event, virtual, enable, 0);
 
@@ -862,6 +895,10 @@ static void extra_notify_state(unsigned long event, int enable)
 		if (notify->set_battcall)
 			notify->set_battcall
 				(NOTIFY_EVENT_MMD_EXT_CURRENT, enable);
+		break;
+	case NOTIFY_EVENT_DEVICE_CONNECT:
+		u_notify->is_device = 1;
+		pr_info("%s device connect\n", __func__);
 		break;
 	default:
 		break;
@@ -994,6 +1031,20 @@ static void reserve_state_check(struct work_struct *work)
 				(&u_noti->o_notify->otg_notifier,
 						state, &enable);
 	}
+}
+
+static void device_connect_check(struct work_struct *work)
+{
+	struct otg_notify *n = get_otg_notify();
+
+	pr_info("%s start. is_device=%d\n", __func__, u_notify->is_device);
+	if (!u_notify->is_device) {
+		send_external_notify(EXTERNAL_NOTIFY_3S_NODEVICE, 1);
+		if (n->vbus_drive)
+			n->vbus_drive(0);
+	}
+	u_notify->check_work_complete = 1;
+	pr_info("%s finished\n", __func__);
 }
 
 int set_notify_disable(struct usb_notify_dev *udev, int disable)
@@ -1357,6 +1408,9 @@ int set_otg_notify(struct otg_notify *n)
 				n->booting_delay_sec*HZ);
 	}
 
+	if (n->device_check_sec)
+		INIT_DELAYED_WORK(&u_notify->check_work,
+				  device_connect_check);
 
 	pr_info("registered otg_notify -\n");
 	return 0;
